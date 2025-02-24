@@ -191,10 +191,14 @@ func (o Opt[T]) Filter(predicate func(T) bool) Opt[T] {
 	return o
 }
 
-// ToPtr returns pointer to the underlying value if the option is [Some] or nil otherwise
+// ToPtr returns pointer to the value if the option is [Some] or nil otherwise.
+//
+// The underlying value of the pointer is safe to modify, as it is copied before return
+// to avoid changes to the original value.
 func (o Opt[T]) ToPtr() *T {
 	if o.ok {
-		return &o.value
+		value := o.value
+		return &value
 	}
 
 	return nil
