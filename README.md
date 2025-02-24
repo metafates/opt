@@ -18,21 +18,21 @@ go get github.com/metafates/opt
 package main
 
 import (
- "fmt"
- "math"
+    "fmt"
+    "math"
     "github.com/metafates/opt"
 )
 
 func divide(numerator, denominator float64) Opt[float64] {
- if denominator == 0 {
-  return None[float64]()
- }
+    if denominator == 0 {
+        return None[float64]()
+    }
 
- return Some(numerator / denominator)
+    return Some(numerator / denominator)
 }
 
 func main() {
- result := divide(2, 3)
+    result := divide(2, 3)
 
     fmt.Println(result.UnwrapOr(math.MaxInt))
 }
