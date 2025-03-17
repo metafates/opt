@@ -21,7 +21,7 @@ go get github.com/metafates/opt
 
 ## Usage
 
-See [./example_test.go] for more examples.
+See [example_test.go](./example_test.go) for more examples.
 
 ```go
 package main
