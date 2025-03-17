@@ -4,6 +4,19 @@ import (
 	"fmt"
 )
 
+func ExampleOpt_IsExplicit() {
+	var implicit Opt[string]
+
+	explicit := None[string]()
+
+	fmt.Println(implicit, implicit.IsExplicit())
+	fmt.Println(explicit, explicit.IsExplicit())
+
+	// Output:
+	// None false
+	// None true
+}
+
 func ExampleSome() {
 	x := Some(2)
 
@@ -74,44 +87,44 @@ func ExampleOpt_IsNoneOr() {
 	// true
 }
 
-func ExampleOpt_TryUnwrap() {
+func ExampleOpt_TryGet() {
 	x := Some(42)
 	y := None[int]()
 
-	fmt.Println(x.TryUnwrap())
-	fmt.Println(y.TryUnwrap())
+	fmt.Println(x.TryGet())
+	fmt.Println(y.TryGet())
 
 	// Output:
 	// 42 true
 	// 0 false
 }
 
-func ExampleOpt_UnwrapOr() {
-	fmt.Println(Some("car").UnwrapOr("bike"))
-	fmt.Println(None[string]().UnwrapOr("bike"))
+func ExampleOpt_GetOr() {
+	fmt.Println(Some("car").GetOr("bike"))
+	fmt.Println(None[string]().GetOr("bike"))
 
 	// Output:
 	// car
 	// bike
 }
 
-func ExampleOpt_UnwrapOrElse() {
+func ExampleOpt_GetOrElse() {
 	k := 10
 
-	fmt.Println(Some(4).UnwrapOrElse(func() int { return 2 * k }))
-	fmt.Println(None[int]().UnwrapOrElse(func() int { return 2 * k }))
+	fmt.Println(Some(4).GetOrElse(func() int { return 2 * k }))
+	fmt.Println(None[int]().GetOrElse(func() int { return 2 * k }))
 
 	// Output:
 	// 4
 	// 20
 }
 
-func ExampleOpt_UnwrapOrEmpty() {
+func ExampleOpt_GetOrEmpty() {
 	x := None[int]()
 	y := Some(12)
 
-	fmt.Println(x.UnwrapOrEmpty())
-	fmt.Println(y.UnwrapOrEmpty())
+	fmt.Println(x.GetOrEmpty())
+	fmt.Println(y.GetOrEmpty())
 
 	// Output:
 	// 0
@@ -293,6 +306,17 @@ func ExampleIndexMap() {
 
 	// Output:
 	// Some(1)
+	// None
+}
+
+func ExampleFromZero() {
+	fmt.Println(FromZero(0))
+	fmt.Println(FromZero("foo"))
+	fmt.Println(FromZero(""))
+
+	// Output:
+	// None
+	// Some(foo)
 	// None
 }
 

@@ -7,10 +7,15 @@ package opt
 
 import (
 	"fmt"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // Opt (option) represents an optional value.
 // Every option is either [Some] and contains a value, or [None], and does not.
+//
+// Opt also separates explicitly set values, see [Opt.IsExplicit].
+// Implicit [Some] is unreachable state.
 //
 // Use cases:
 //   - Initial values
@@ -18,13 +23,14 @@ import (
 //   - Optional struct fields
 //   - Optional function arguments
 type Opt[T any] struct {
-	value T
-	ok    bool
+	value    T
+	hasValue bool
+	explicit bool
 }
 
 // Some returns option with some value
 func Some[T any](value T) Opt[T] {
-	return Opt[T]{value: value, ok: true}
+	return Opt[T]{value: value, hasValue: true, explicit: true}
 }
 
 // None returns an option with no value.
@@ -32,10 +38,13 @@ func Some[T any](value T) Opt[T] {
 //
 //	var none Opt[any]
 func None[T any]() Opt[T] {
-	return Opt[T]{}
+	return Opt[T]{explicit: true}
 }
 
-// FromPtr returns [Some] with the underlying pointer value if it's not nil or [None] otherwise
+// FromPtr returns [Some] with the underlying pointer value if it's not nil or [None] otherwise.
+//
+// NOTE: Do not use this for converting [proto.Message]s, as they can not be dereferenced without breaking internal reflection mechanism.
+// Use [FromProto] for that purpose
 func FromPtr[T any](ptr *T) Opt[T] {
 	if ptr == nil {
 		return None[T]()
@@ -44,14 +53,55 @@ func FromPtr[T any](ptr *T) Opt[T] {
 	return Some(*ptr)
 }
 
+// FromZero returns [Some] with the given value if it's not zero value or [None] otherwise.
+//
+// This function requires value type to be comparable so that it can be checked for zero value without using reflection
+func FromZero[T comparable](value T) Opt[T] {
+	var zero T
+
+	if value == zero {
+		return None[T]()
+	}
+
+	return Some(value)
+}
+
+// FromProto converts [proto.Message] to either [Some] value, if the message is valid, or [None].
+//
+// An invalid message is an empty, read-only value.
+// An invalid message often corresponds to a nil pointer of the concrete message type, but the details are implementation dependent.
+//
+// See [protoreflect.Message.IsValid]
+func FromProto[T proto.Message](msg T) Opt[T] {
+	if msg.ProtoReflect().IsValid() {
+		return Some(msg)
+	}
+
+	return None[T]()
+}
+
+// IsExplicit reports whether this option was explicitly specified as either [None] or [Some].
+// This property is also applicable for decoded values, such as ones from [json.Unmarshal].
+//
+// If true, it is guaranteed that [Opt.IsSome] will also return true
+//
+// This propery allows to represent the following states:
+//   - The value is not set
+//   - The value is explicitly set to either [None] or [Some]
+func (o Opt[T]) IsExplicit() bool {
+	return o.explicit
+}
+
 // IsSome returns true if the option is a [Some] value.
+//
+// If this option is [Some] it is guaranteed to be explicit. See [Opt.IsExplicit]
 func (o Opt[T]) IsSome() bool {
-	return o.ok
+	return o.hasValue
 }
 
 // IsSomeAnd returns true if the option is a [Some] and the value inside of it matches a predicate.
 func (o Opt[T]) IsSomeAnd(and func(T) bool) bool {
-	if o.ok {
+	if o.hasValue {
 		return and(o.value)
 	}
 
@@ -60,55 +110,55 @@ func (o Opt[T]) IsSomeAnd(and func(T) bool) bool {
 
 // IsNone returns true if the option is a [None] value.
 func (o Opt[T]) IsNone() bool {
-	return !o.ok
+	return !o.hasValue
 }
 
 // IsNoneOr returns true if the option is a [None] or the value inside of it matches a predicate.
 func (o Opt[T]) IsNoneOr(orElse func(T) bool) bool {
-	if !o.ok {
+	if !o.hasValue {
 		return true
 	}
 
 	return orElse(o.value)
 }
 
-// UnwrapOrEmpty returns the contained [Some] value or an empty value for this type.
-func (o Opt[T]) UnwrapOrEmpty() T {
+// GetOrEmpty returns the contained [Some] value or an empty value for this type.
+func (o Opt[T]) GetOrEmpty() T {
 	// since value is not a pointer it contains empty value even if the option is none
 	return o.value
 }
 
-// TryUnwrap returns the contained [Some] value or an empty value for this type
+// TryGet returns the contained [Some] value or an empty value for this type
 // and boolean stating if this option is [Some]
 //
-// If you only need a contained value or an empty one use [Opt.UnwrapOrEmpty]
-func (o Opt[T]) TryUnwrap() (T, bool) {
-	return o.value, o.ok
+// If you only need a contained value or an empty one use [Opt.GetOrEmpty]
+func (o Opt[T]) TryGet() (T, bool) {
+	return o.value, o.hasValue
 }
 
-// MustUnwrap returns the contained [Some] value.
+// MustGet returns the contained [Some] value.
 //
 // Panics if the self value equals [None].
-func (o Opt[T]) MustUnwrap() T {
-	if o.ok {
+func (o Opt[T]) MustGet() T {
+	if o.hasValue {
 		return o.value
 	}
 
-	panic("called MustUnwrap on empty option")
+	panic("called MustGet on empty option")
 }
 
-// UnwrapOr returns the contained [Some] value or a provided default.
-func (o Opt[T]) UnwrapOr(or T) T {
-	if o.ok {
+// GetOr returns the contained [Some] value or a provided default.
+func (o Opt[T]) GetOr(or T) T {
+	if o.hasValue {
 		return o.value
 	}
 
 	return or
 }
 
-// UnwrapOrElse returns the contained [Some] value or computes it from a function.
-func (o Opt[T]) UnwrapOrElse(orElse func() T) T {
-	if o.ok {
+// GetOrElse returns the contained [Some] value or computes it from a function.
+func (o Opt[T]) GetOrElse(orElse func() T) T {
+	if o.hasValue {
 		return o.value
 	}
 
@@ -119,7 +169,7 @@ func (o Opt[T]) UnwrapOrElse(orElse func() T) T {
 //
 // Returns the original option.
 func (o Opt[T]) Inspect(f func(T)) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		f(o.value)
 	}
 
@@ -130,7 +180,7 @@ func (o Opt[T]) Inspect(f func(T)) Opt[T] {
 //
 // See [Map] if you need to return a different type.
 func (o Opt[T]) Map(f func(T) T) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		return Some(f(o.value))
 	}
 
@@ -139,7 +189,7 @@ func (o Opt[T]) Map(f func(T) T) Opt[T] {
 
 // And returns [None] if the option is [None], otherwise returns `and`.
 func (o Opt[T]) And(and Opt[T]) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		return and
 	}
 
@@ -151,7 +201,7 @@ func (o Opt[T]) And(and Opt[T]) Opt[T] {
 //
 // See [AndThen] if you need to return a different type
 func (o Opt[T]) AndThen(andThen func(T) Opt[T]) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		return andThen(o.value)
 	}
 
@@ -160,7 +210,7 @@ func (o Opt[T]) AndThen(andThen func(T) Opt[T]) Opt[T] {
 
 // Or returns itself if it contains a value, otherwise returns `or`.
 func (o Opt[T]) Or(or Opt[T]) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		return o
 	}
 
@@ -169,7 +219,7 @@ func (o Opt[T]) Or(or Opt[T]) Opt[T] {
 
 // OrElse returns itself if it contains a value, otherwise calls `orElse` and returns the result.
 func (o Opt[T]) OrElse(orElse func() Opt[T]) Opt[T] {
-	if o.ok {
+	if o.hasValue {
 		return o
 	}
 
@@ -180,7 +230,7 @@ func (o Opt[T]) OrElse(orElse func() Opt[T]) Opt[T] {
 //   - [Some] if predicate returns true.
 //   - [None] if predicate returns false.
 func (o Opt[T]) Filter(predicate func(T) bool) Opt[T] {
-	if !o.ok {
+	if !o.hasValue {
 		return o
 	}
 
@@ -196,7 +246,7 @@ func (o Opt[T]) Filter(predicate func(T) bool) Opt[T] {
 // The underlying value of the pointer is safe to modify, as it is copied before return
 // to avoid changes to the original value.
 func (o Opt[T]) ToPtr() *T {
-	if o.ok {
+	if o.hasValue {
 		value := o.value
 		return &value
 	}
@@ -205,7 +255,7 @@ func (o Opt[T]) ToPtr() *T {
 }
 
 func (o Opt[T]) String() string {
-	if o.ok {
+	if o.hasValue {
 		return fmt.Sprintf("Some(%v)", o.value)
 	}
 
@@ -214,7 +264,7 @@ func (o Opt[T]) String() string {
 
 // IndexSlice returns [Some] slice value at the given index if the index exists or [None] otherwise
 func IndexSlice[S ~[]T, T any](slice S, index int) Opt[T] {
-	if index >= len(slice) {
+	if index >= len(slice) || index < 0 {
 		return None[T]()
 	}
 
@@ -225,7 +275,11 @@ func IndexSlice[S ~[]T, T any](slice S, index int) Opt[T] {
 func IndexMap[M ~map[K]V, K comparable, V any](m M, key K) Opt[V] {
 	value, ok := m[key]
 
-	return Opt[V]{value: value, ok: ok}
+	if ok {
+		return Some(value)
+	}
+
+	return None[V]()
 }
 
 // Map maps a value by applying a function to a contained value (if [Some]) or returns [None] (if [None]).
@@ -233,7 +287,7 @@ func IndexMap[M ~map[K]V, K comparable, V any](m M, key K) Opt[V] {
 // This function allows `f` to return a different type in contrast to the [Opt.Map] which is limited
 // by the lack of method type parameters in Go.
 func Map[T, U any](option Opt[T], f func(T) U) Opt[U] {
-	if option.ok {
+	if option.hasValue {
 		return Some(f(option.value))
 	}
 
@@ -246,7 +300,7 @@ func Map[T, U any](option Opt[T], f func(T) U) Opt[U] {
 // This function allows `f` to return a different type in contrast to the [Opt.AndThen] which is limited
 // by the lack of method type parameters in Go.
 func AndThen[T, U any](option Opt[T], f func(T) Opt[U]) Opt[U] {
-	if option.ok {
+	if option.hasValue {
 		return f(option.value)
 	}
 

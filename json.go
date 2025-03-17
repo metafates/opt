@@ -9,11 +9,11 @@ var _ interface {
 
 // MarshalJSON implemenets [json.Marshaler] interface
 func (o Opt[T]) MarshalJSON() ([]byte, error) {
-	if o.ok {
+	if o.hasValue {
 		return json.Marshal(o.value)
 	}
 
-	return json.Marshal(nil)
+	return []byte("null"), nil
 }
 
 // UnmarshalJSON implemenets [json.Unmarshaler] interface

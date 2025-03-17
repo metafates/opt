@@ -46,9 +46,9 @@ func (o *Opt[T]) Scan(src any) error {
 
 // Value implements the [driver.Valuer] interface.
 //
-// Use unwrap methods (e.g. [Opt.TryUnwrap]) instead for getting the go value
+// Use unwrap methods (e.g. [Opt.TryGet]) instead for getting the go value
 func (o Opt[T]) Value() (driver.Value, error) {
-	if !o.ok {
+	if !o.hasValue {
 		return nil, nil
 	}
 
@@ -58,11 +58,15 @@ func (o Opt[T]) Value() (driver.Value, error) {
 func (o *Opt[T]) scanConvertValue(src any) error {
 	var nullable sql.Null[T]
 
-	if err := nullable.Scan(src); err == nil {
-		*o = Some(nullable.V)
-
-		return nil
+	if err := nullable.Scan(src); err != nil {
+		return err
 	}
 
-	return fmt.Errorf("failed to scan Opt[T]")
+	if nullable.Valid {
+		*o = Some(nullable.V)
+	} else {
+		*o = None[T]()
+	}
+
+	return nil
 }

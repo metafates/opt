@@ -14,7 +14,7 @@ var _ interface {
 
 // MarshalBinary implemenets [encoding.BinaryMarshaler] interface
 func (o Opt[T]) MarshalBinary() ([]byte, error) {
-	if !o.ok {
+	if !o.hasValue {
 		return []byte{0}, nil
 	}
 
@@ -22,7 +22,7 @@ func (o Opt[T]) MarshalBinary() ([]byte, error) {
 
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(o.value); err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	return append([]byte{1}, buf.Bytes()...), nil
@@ -36,6 +36,7 @@ func (o *Opt[T]) UnmarshalBinary(data []byte) error {
 
 	if data[0] == 0 {
 		*o = None[T]()
+
 		return nil
 	}
 

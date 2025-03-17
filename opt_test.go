@@ -2,7 +2,7 @@ package opt
 
 import (
 	"bytes"
-	"database/sql"
+	"database/sql/driver"
 	"encoding"
 	"encoding/gob"
 	"encoding/json"
@@ -10,6 +10,25 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestOpt_ToPtr(t *testing.T) {
+	x := Some("a")
+
+	*x.ToPtr() = "b"
+
+	require.Equal(t, Some("a"), x)
+}
+
+func TestOpt_FromZero(t *testing.T) {
+	require.Equal(t, None[string](), FromZero(""))
+	require.Equal(t, Some("foo"), FromZero("foo"))
+
+	require.Equal(t, None[int](), FromZero(0))
+	require.Equal(t, Some(1), FromZero(1))
+
+	require.Equal(t, None[bool](), FromZero(false))
+	require.Equal(t, Some(true), FromZero(true))
+}
 
 func TestOpt_Scan(t *testing.T) {
 	t.Run("nil scan", func(t *testing.T) {
@@ -22,15 +41,23 @@ func TestOpt_Scan(t *testing.T) {
 	})
 
 	t.Run("scan scanner", func(t *testing.T) {
-		var option Opt[string]
+		t.Run("null", func(t *testing.T) {
+			var option Opt[string]
 
-		err := option.Scan(sql.NullString{
-			String: "go",
-			Valid:  true,
+			err := option.Scan(driver.Value(nil))
+
+			require.NoError(t, err)
+			require.Equal(t, None[string](), option)
 		})
 
-		require.NoError(t, err)
-		require.Equal(t, Some("go"), option)
+		t.Run("not null", func(t *testing.T) {
+			var option Opt[string]
+
+			err := option.Scan(driver.Value("go"))
+
+			require.NoError(t, err)
+			require.Equal(t, Some("go"), option)
+		})
 	})
 
 	t.Run("scan regular value", func(t *testing.T) {
@@ -59,6 +86,19 @@ func TestOpt_Value(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "apple", value)
 	})
+}
+
+func TestOpt_IsExplicit(t *testing.T) {
+	var foo, bar struct {
+		Name string
+		Age  Opt[int]
+	}
+
+	JSONEncoder{}.Decode(t, []byte(`{"name":"bar","age":null}`), &foo)
+	require.True(t, foo.Age.IsExplicit())
+
+	JSONEncoder{}.Decode(t, []byte(`{"name":"bar"}`), &bar)
+	require.False(t, bar.Age.IsExplicit())
 }
 
 func TestEncode(t *testing.T) {
