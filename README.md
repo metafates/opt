@@ -27,34 +27,34 @@ See [example_test.go](./example_test.go) for more examples.
 package main
 
 import (
- "fmt"
- "time"
+	"fmt"
+	"time"
 
- "github.com/metafates/opt"
+	"github.com/metafates/opt"
 )
 
 type User struct {
- Birth opt.Opt[time.Time]
+	Birth opt.Opt[time.Time]
 }
 
 func (u User) Age() opt.Opt[int] {
- return opt.Map(u.Birth, func(t time.Time) int {
-  return time.Now().Year() - t.Year()
- })
+	return opt.Map(u.Birth, func(t time.Time) int {
+		return time.Now().Year() - t.Year()
+	})
 }
 
 func isAdult(age int) bool {
- return age >= 18
+	return age >= 18
 }
 
 func getUser(id int) opt.Opt[User] {
- // ...
+	// ...
 }
 
 func main() {
- if opt.AndThen(getUser(42), User.Age).IsSomeAnd(isAdult) {
-  fmt.Println("🍺!")
- }
+	if opt.AndThen(getUser(42), User.Age).IsSomeAnd(isAdult) {
+		fmt.Println("🍺!")
+	}
 }
 ```
 
