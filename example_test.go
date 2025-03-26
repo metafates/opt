@@ -288,25 +288,30 @@ func ExampleOpt_OrElse() {
 func ExampleIndexSlice() {
 	s := []int{10, 40, 30}
 
-	fmt.Println(IndexSlice(s, 1))
-	fmt.Println(IndexSlice(s, 3))
+	fmt.Println(IndexSlice(s)(1))
+	fmt.Println(IndexSlice(s)(3))
+	fmt.Println(Some(0).AndThen(IndexSlice(s)))
 
 	// Output:
 	// Some(40)
 	// None
+	// Some(10)
 }
 
 func ExampleIndexMap() {
-	m := map[string]int{
-		"a": 1,
+	m := map[int]int{
+		7: 5,
 	}
 
-	fmt.Println(IndexMap(m, "a"))
-	fmt.Println(IndexMap(m, "b"))
+	fmt.Println(IndexMap(m)(7))
+	fmt.Println(IndexMap(m)(1))
+
+	fmt.Println(Some(7).AndThen(IndexMap(m)))
 
 	// Output:
-	// Some(1)
+	// Some(5)
 	// None
+	// Some(5)
 }
 
 func ExampleFromZero() {
@@ -317,6 +322,19 @@ func ExampleFromZero() {
 	// Output:
 	// None
 	// Some(foo)
+	// None
+}
+
+func ExampleFromTuple() {
+	foo := func() (int, bool) { return 42, true }
+	bar := func() (int, bool) { return 0, false }
+
+	fmt.Println(FromTuple(foo()))
+
+	fmt.Println(FromTuple(bar()))
+
+	// Output:
+	// Some(42)
 	// None
 }
 
@@ -346,6 +364,21 @@ func ExampleOpt_ToPtr() {
 	// Output:
 	// true 42
 	// <nil>
+}
+
+func ExampleOpt_ToSlice() {
+	x := Some(42)
+	y := None[int]()
+	z := Some([]int{1, 2, 3})
+
+	fmt.Println(x.ToSlice())
+	fmt.Println(y.ToSlice())
+	fmt.Println(z.ToSlice())
+
+	// Output:
+	// [42]
+	// []
+	// [[1 2 3]]
 }
 
 func ExampleOpt_Inspect() {

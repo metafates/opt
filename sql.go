@@ -52,7 +52,15 @@ func (o Opt[T]) Value() (driver.Value, error) {
 		return nil, nil
 	}
 
-	return driver.DefaultParameterConverter.ConvertValue(o.value)
+	// NOTE: convert value will error for any type other than some set of basic ones, e.g. int, float, []byte
+	// so we return raw value as is in this case.
+	// This is not 100% correct, but most libraries will handle raw values just fine
+	converted, err := driver.DefaultParameterConverter.ConvertValue(o.value)
+	if err == nil {
+		return converted, nil
+	}
+
+	return o.value, nil
 }
 
 func (o *Opt[T]) scanConvertValue(src any) error {

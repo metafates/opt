@@ -80,14 +80,24 @@ func FromProto[T proto.Message](msg T) Opt[T] {
 	return None[T]()
 }
 
+// FromTuple returns [Some] with the given value if ok is true, [None] otherwise
+func FromTuple[T any](value T, ok bool) Opt[T] {
+	if ok {
+		return Some(value)
+	}
+
+	return None[T]()
+}
+
 // IsExplicit reports whether this option was explicitly specified as either [None] or [Some].
 // This property is also applicable for decoded values, such as ones from [json.Unmarshal].
 //
-// If true, it is guaranteed that [Opt.IsSome] will also return true
+// If [Opt.IsSome] is true, it is guaranteed that this function will also return true
 //
-// This propery allows to represent the following states:
+// This propery allows to represent all three possible states:
 //   - The value is not set
-//   - The value is explicitly set to either [None] or [Some]
+//   - The value is explicitly set to [None]
+//   - The value is explicitly set to a given [Some] value
 func (o Opt[T]) IsExplicit() bool {
 	return o.explicit
 }
@@ -124,8 +134,13 @@ func (o Opt[T]) IsNoneOr(orElse func(T) bool) bool {
 
 // GetOrEmpty returns the contained [Some] value or an empty value for this type.
 func (o Opt[T]) GetOrEmpty() T {
-	// since value is not a pointer it contains empty value even if the option is none
-	return o.value
+	// we could just return o.value ignoring the o.hasValue, but see [Opt.TryGet] explanation
+	if o.hasValue {
+		return o.value
+	}
+
+	var empty T
+	return empty
 }
 
 // TryGet returns the contained [Some] value or an empty value for this type
@@ -133,7 +148,15 @@ func (o Opt[T]) GetOrEmpty() T {
 //
 // If you only need a contained value or an empty one use [Opt.GetOrEmpty]
 func (o Opt[T]) TryGet() (T, bool) {
-	return o.value, o.hasValue
+	// we could just return o.value, o.hasValue
+	// but if T is a pointer-value it makes it possible to modify underlying empty value for all the future calls.
+	// the risk is still there for non-empty values (unless we deep-clone), but it is usually expected behaviour
+	if o.hasValue {
+		return o.value, true
+	}
+
+	var empty T
+	return empty, false
 }
 
 // MustGet returns the contained [Some] value.
@@ -262,24 +285,39 @@ func (o Opt[T]) String() string {
 	return "None"
 }
 
-// IndexSlice returns [Some] slice value at the given index if the index exists or [None] otherwise
-func IndexSlice[S ~[]T, T any](slice S, index int) Opt[T] {
-	if index >= len(slice) || index < 0 {
-		return None[T]()
+// ToSlice returns singleton slice if option is [Some] or nil otherwise.
+func (o Opt[T]) ToSlice() []T {
+	if o.hasValue {
+		return []T{o.value}
 	}
 
-	return Some(slice[index])
+	return nil
 }
 
-// IndexMap returns [Some] map value at the given key if the key exists or [None] otherwise
-func IndexMap[M ~map[K]V, K comparable, V any](m M, key K) Opt[V] {
-	value, ok := m[key]
+// IndexSlice returns closure that accepts index and returns [Some] slice value at the given index
+// if the index exists or [None] otherwise
+func IndexSlice[S ~[]T, T any](slice S) func(index int) Opt[T] {
+	return func(index int) Opt[T] {
+		if index >= len(slice) || index < 0 {
+			return None[T]()
+		}
 
-	if ok {
-		return Some(value)
+		return Some(slice[index])
 	}
+}
 
-	return None[V]()
+// IndexMap returns closure that accepts key and returns [Some] map value at the given key
+// if the key exists or [None] otherwise
+func IndexMap[M ~map[K]V, K comparable, V any](m M) func(key K) Opt[V] {
+	return func(key K) Opt[V] {
+		value, ok := m[key]
+
+		if ok {
+			return Some(value)
+		}
+
+		return None[V]()
+	}
 }
 
 // Map maps a value by applying a function to a contained value (if [Some]) or returns [None] (if [None]).
